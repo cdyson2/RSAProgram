@@ -1,6 +1,7 @@
 .text
 .global generate_keys
 .global encrypt_message
+.global decrypt_message
 .global menu_text
 .global scan_format
 .global menu_choice
@@ -34,6 +35,9 @@ invalid_e_msg: .asciz "Invalid e. Must satisfy: 1 < e < phi and gcd(e, phi) = 1.
 msg_d: .asciz "Private exponent d = %d\n"
 n_val: .word 0
 e_val: .word 0
+format_char: .asciz "%c"
+d_val:       .word  0
+
 
 debug_e: .asciz "Debug Before cprivexp: e = %d, phi = %d\n"
 trying_x: .asciz "Trying x = %d\n"
@@ -107,6 +111,8 @@ generate_keys:
     	MOV r1, r7        // r1 = phi
 	BL cprivexp
 	MOV r9, r0	// Store d in r9
+	LDR r0, =d_val            @ << new >>
+    STR r9, [r0]              @ save d so decrypt_message can load it later
 
 	# Store n and e permanently
 	LDR r0, =n_val
@@ -553,8 +559,8 @@ encrypt_message:
 	# r5 - store e in r5 
 	# r6 - store file handle in r6
 	
-	SUB sp, sp, #4
-	STR lr, [sp, #0]
+	# SUB sp, sp, #4
+	# STR lr, [sp, #0]
 	
 	# Load n and e back from memory
 	LDR r0, =n_val
@@ -573,12 +579,14 @@ encrypt_message:
 
 	LDR r0, =msg_input_plaintext
     	BL printf
+
         LDR r1, =plaintext        @ buffer to store input
         LDR r0, =scan_string_format  @ format string "%s"
         BL scanf
-        LDR r0, =plaintext
-        MOV r1, r0              @ Use r1 as modifiable pointer to plaintext
-    	BL scanf
+
+        # LDR r0, =plaintext
+        # MOV r1, r0              @ Use r1 as modifiable pointer to plaintext
+    	# BL scanf
 
 
 	LDR r0, =file_encrypted
@@ -618,7 +626,8 @@ encrypt_message:
     		BL printf
 
 		@ Write to file: fprintf(r6, "%d ", r8)
-        MOV r0, r6              @ r0 = file handle
+        # MOV r0, r6              @ r0 = file handle
+		MOV r0, r4              @ r0 = file handle
         LDR r1, =format_int     @ r1 = "%d "
         MOV r2, r8              @ r2 = encrypted int
         BL fprintf
@@ -633,6 +642,67 @@ encrypt_message:
         POP {r4-r9, lr}      @ Restore registers
     		MOV pc, lr
 
+/* ------------------------------------ */
+/* Decrypt Message */
+.text
+decrypt_message:
+        PUSH {r4-r9, lr}          @ preserve caller‑saved regs
+
+        SUB   sp, sp, #4          @ 4‑byte scratch for fscanf value
+        MOV   r8, sp              @ r8 = &value
+
+        /* Load modulus n (r4) and private exponent d (r5) */
+        LDR   r0, =n_val
+        LDR   r4, [r0]
+        LDR   r0, =d_val          @ d was saved in generate_keys
+        LDR   r5, [r0]
+
+        /* fopen("encrypted.txt", "r") */
+        LDR   r0, =file_encrypted
+        LDR   r1, =mode_read
+        BL    fopen
+        MOV   r7, r0              @ r6 = infile handle
+
+        /* fopen("plaintext.txt", "w") */
+        LDR   r0, =file_plaintext
+        LDR   r1, =mode_write
+        BL    fopen
+        MOV   r7, r0              @ r7 = outfile handle
+
+decrypt_loop:
+        @ fscanf(infile, "%d", &value) ; returns 1 on success
+        MOV   r0, r6              @ infile
+        LDR   r1, =scan_format    @ "%d"
+        MOV   r2, r8              @ &value
+        BL    fscanf
+        CMP   r0, #1
+        BNE   decrypt_done        @ EOF or read error → leave loop
+
+        LDR   r0, [r8]            @ r0 = ciphertext c
+        MOV   r1, r5              @ r1 = d
+        MOV   r2, r4              @ r2 = n
+        BL    pow                 @ r0 ← m = c^d mod n
+
+        /* write plaintext char */
+        MOV   r3, r0              @ keep m (ASCII) in r3
+        MOV   r0, r7              @ outfile handle
+        LDR   r1, =format_char    @ "%c"
+        MOV   r2, r3              @ char value
+        BL    fprintf
+        B     decrypt_loop
+
+decrypt_done:
+        /* flush & close both files */
+        MOV   r0, r7
+        BL    fflush
+        BL    fclose
+        MOV   r0, r6
+        BL    fclose
+
+        ADD   sp, sp, #4          @ drop scratch word
+        POP   {r4-r9, lr}
+        BX    lr
+/* End decrypt_message */
 
 .text
 pow:
