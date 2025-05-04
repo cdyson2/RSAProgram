@@ -103,27 +103,15 @@ Display decrypted message.
 Confirm message is written to plaintext.txt.  
 
 ## 4. Software Modules  
-Function Name  
-Purpose  
-generate_keys  
-Generate RSA keys  
-is_prime  
-Check if a number is prime  
-gcd  
-Compute the Greatest Common Divisor  
-encrypt_message  
-Encrypts a user message  
-decrypt_message    
-Decrypts an encrypted message  
-mod_exp  
-Compute modular exponentiation  
+generate_keys - Generate RSA keys  
+is_prime - Check if a number is prime  
+gcd - Compute the Greatest Common Divisor  
+encrypt_message - Encrypts a user message  
+decrypt_message - Decrypts an encrypted message  
+mod_exp - Compute modular exponentiation  
 
 
 ## 5. File Handling  
-File  
-Purpose  
-encrypted.txt  
-Stores encrypted message  
-plaintext.txt  
-Stores decrypted message  
+encrypted.txt - Stores encrypted message  
+plaintext.txt - Stores decrypted message  
 
